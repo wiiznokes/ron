@@ -4,7 +4,10 @@ use alloc::{borrow::Cow, boxed::Box, format, string::String, vec::Vec};
 use core::{cmp::Eq, hash::Hash};
 
 use serde::{
-    de::{DeserializeOwned, DeserializeSeed, Deserializer, MapAccess, SeqAccess, Visitor},
+    de::{
+        DeserializeOwned, DeserializeSeed, Deserializer, MapAccess, SeqAccess,
+        Visitor,
+    },
     forward_to_deserialize_any,
 };
 
@@ -21,15 +24,19 @@ pub use raw::RawValue;
 
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum Value {
+    Unit,
     Bool(bool),
     Char(char),
-    Map(Map),
     Number(Number),
-    Option(Option<Box<Value>>),
     String(String),
     Bytes(Vec<u8>),
-    Seq(Vec<Value>),
-    Unit,
+    Option(Option<Box<Value>>),
+    List(Vec<Value>),
+    Map(Map<Value>),
+    Tuple(Vec<Value>),
+    NamedUnit(Cow<'static, str>),
+    NamedMap(Cow<'static, str>, Map<Cow<'static, str>>),
+    NamedTuple(Cow<'static, str>, Vec<Value>),
 }
 
 impl From<bool> for Value {
@@ -50,8 +57,8 @@ impl<K: Into<Value>, V: Into<Value>> FromIterator<(K, V)> for Value {
     }
 }
 
-impl From<Map> for Value {
-    fn from(value: Map) -> Self {
+impl From<Map<Value>> for Value {
+    fn from(value: Map<Value>) -> Self {
         Self::Map(value)
     }
 }
@@ -95,7 +102,7 @@ impl<const N: usize> From<&'static [u8; N]> for Value {
 
 impl<T: Into<Value>> FromIterator<T> for Value {
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
-        Self::Seq(iter.into_iter().map(Into::into).collect())
+        Self::List(iter.into_iter().map(Into::into).collect())
     }
 }
 
@@ -175,9 +182,8 @@ impl<'de> Deserializer<'de> for Value {
             Value::Option(None) => visitor.visit_none(),
             Value::String(s) => visitor.visit_string(s),
             Value::Bytes(b) => visitor.visit_byte_buf(b),
-            Value::Seq(mut seq) => {
+            Value::List(mut seq) => {
                 let old_len = seq.len();
-
                 seq.reverse();
                 let value = visitor.visit_seq(SeqAccessor { seq: &mut seq })?;
 
@@ -191,6 +197,10 @@ impl<'de> Deserializer<'de> for Value {
                 }
             }
             Value::Unit => visitor.visit_unit(),
+            Value::Tuple(_values) => todo!(),
+            Value::NamedUnit(_cow) => todo!(),
+            Value::NamedMap(_cow, _map) => todo!(),
+            Value::NamedTuple(_cow, _values) => todo!(),
         }
     }
 }
@@ -416,7 +426,7 @@ mod tests {
 
         assert_eq!(
             Value::from([-1_i8, 2, -3].as_slice()),
-            Value::Seq(vec![
+            Value::List(vec![
                 Value::from(-1_i8),
                 Value::from(2_i8),
                 Value::from(-3_i8)
@@ -424,7 +434,7 @@ mod tests {
         );
         assert_eq!(
             Value::from(vec![-1_i8, 2, -3]),
-            Value::Seq(vec![
+            Value::List(vec![
                 Value::from(-1_i8),
                 Value::from(2_i8),
                 Value::from(-3_i8)
@@ -432,7 +442,7 @@ mod tests {
         );
         assert_eq!(
             Value::from_iter([-1_i8, 2, -3]),
-            Value::Seq(vec![
+            Value::List(vec![
                 Value::from(-1_i8),
                 Value::from(2_i8),
                 Value::from(-3_i8)

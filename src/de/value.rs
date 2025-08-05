@@ -214,14 +214,14 @@ impl<'de> Visitor<'de> for ValueVisitor {
             vec.push(x);
         }
 
-        Ok(Value::Seq(vec))
+        Ok(Value::List(vec))
     }
 
     fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
     where
         A: MapAccess<'de>,
     {
-        let mut res: Map = Map::new();
+        let mut res: Map<Value> = Map::new();
 
         #[cfg(feature = "indexmap")]
         if let Some(cap) = map.size_hint() {
@@ -265,7 +265,7 @@ mod tests {
     fn test_tuples_basic() {
         assert_eq!(
             eval("(3, 4.0, 5.0)"),
-            Value::Seq(vec![
+            Value::List(vec![
                 Value::Number(Number::U8(3)),
                 Value::Number(Number::F32(4.0.into())),
                 Value::Number(Number::F32(5.0.into())),
@@ -277,7 +277,7 @@ mod tests {
     fn test_tuples_ident() {
         assert_eq!(
             eval("(true, 3, 4, 5.0)"),
-            Value::Seq(vec![
+            Value::List(vec![
                 Value::Bool(true),
                 Value::Number(Number::U8(3)),
                 Value::Number(Number::U8(4)),
@@ -306,7 +306,7 @@ mod tests {
     fn test_floats() {
         assert_eq!(
             eval("(inf, -inf, NaN)"),
-            Value::Seq(vec![
+            Value::List(vec![
                 Value::Number(Number::new(core::f32::INFINITY)),
                 Value::Number(Number::new(core::f32::NEG_INFINITY)),
                 Value::Number(Number::new(core::f32::NAN)),
@@ -333,7 +333,7 @@ mod tests {
     ),
 ])"
             ),
-            Value::Option(Some(Box::new(Value::Seq(vec![
+            Value::Option(Some(Box::new(Value::List(vec![
                 Value::Map(
                     vec![
                         (
